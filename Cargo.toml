@@ -1,0 +1,44 @@
+[package]
+name = "markd"
+version = "0.1.0"
+edition = "2021"
+authors = ["Rktim <raktimkalita.ai@gmail.com>"]
+description = "Universal Terminal Document & Markdown Viewer powered by Rust and MarkItDown"
+readme = "README.md"
+homepage = "https://github.com/Rktim/markd"
+repository = "https://github.com/Rktim/markd"
+license = "MIT"
+keywords = ["markdown", "tui", "viewer", "terminal", "markitdown"]
+categories = ["command-line-utilities", "text-processing"]
+
+[dependencies]
+termimad = "0.30"
+crossterm = "0.27"
+
+# Debian Package Metadata (used by `cargo deb`)
+[package.metadata.deb]
+maintainer = "Raktim <raktimkalita.ai@gmail.com>"
+copyright = "2026, Raktim <raktimkalita.ai@gmail.com>"
+license-file = ["LICENSE", "0"]
+extended-description = """\
+markd is a fast, universal terminal document viewer.
+It native-renders Markdown (.md) and converts non-Markdown documents
+(.pdf, .docx, .pptx, .xlsx, etc.) on the fly using MarkItDown into an interactive
+VS Code / Omarchy styled terminal TUI.
+"""
+depends = "$auto"
+section = "utility"
+priority = "optional"
+assets = [
+    ["target/release/markd", "usr/bin/markd", "755"],
+    ["README.md", "usr/share/doc/markd/README.md", "644"],
+    ["LICENSE", "usr/share/doc/markd/LICENSE", "644"],
+]
+
+# Fedora / RedHat RPM Package Metadata (used by `cargo generate-rpm`)
+[package.metadata.generate-rpm]
+assets = [
+    { source = "target/release/markd", dest = "/usr/bin/markd", mode = "755" },
+    { source = "README.md", dest = "/usr/share/doc/markd/README.md", mode = "644" },
+    { source = "LICENSE", dest = "/usr/share/doc/markd/LICENSE", mode = "644" }
+]
