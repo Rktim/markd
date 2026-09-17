@@ -1,0 +1,101 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & Publish Release
+    runs-on: ubuntu-latest
+
+    steps:
+      # --------------------------------------------------
+      # Checkout
+      # --------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # --------------------------------------------------
+      # Rust
+      # --------------------------------------------------
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # --------------------------------------------------
+      # Packaging tools
+      # --------------------------------------------------
+      - name: Install cargo-deb
+        run: cargo install cargo-deb
+
+      - name: Install cargo-generate-rpm
+        run: cargo install cargo-generate-rpm
+
+      # --------------------------------------------------
+      # Build
+      # --------------------------------------------------
+      - name: Build release binary
+        run: cargo build --release
+
+      # --------------------------------------------------
+      # Debian package
+      # --------------------------------------------------
+      - name: Build Debian package
+        run: cargo deb
+
+      # --------------------------------------------------
+      # RPM package
+      # --------------------------------------------------
+      - name: Build RPM package
+        run: cargo generate-rpm
+
+      # --------------------------------------------------
+      # Portable Linux tarball
+      # --------------------------------------------------
+      - name: Create Linux tarball
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+
+          mkdir -p /tmp/markd-release
+
+          cp target/release/markd /tmp/markd-release/
+          cp README.md /tmp/markd-release/
+          cp LICENSE /tmp/markd-release/
+
+          tar -czvf \
+            "markd-v${VERSION}-x86_64-unknown-linux-gnu.tar.gz" \
+            -C /tmp markd-release
+
+          echo "TARBALL=markd-v${VERSION}-x86_64-unknown-linux-gnu.tar.gz" >> "$GITHUB_ENV"
+
+      # --------------------------------------------------
+      # Verify artifacts
+      # --------------------------------------------------
+      - name: List release artifacts
+        run: |
+          echo "=== Debian ==="
+          ls -lh target/debian/
+
+          echo ""
+          echo "=== RPM ==="
+          ls -lh target/generate-rpm/
+
+          echo ""
+          echo "=== Tarball ==="
+          ls -lh "$TARBALL"
+
+      # --------------------------------------------------
+      # GitHub Release
+      # --------------------------------------------------
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            target/debian/*.deb
+            target/generate-rpm/*.rpm
+            ${{ env.TARBALL }}
