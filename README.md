@@ -1,53 +1,129 @@
- `markd` 🚀
+# markd
 
-> **Universal Terminal Document & Markdown Viewer** powered by Rust and Microsoft MarkItDown.
+<p align="center">
+  <img src="assets/markd-logo.png" alt="markd logo" width="180">
+</p>
 
-`markd` is a fast, modern terminal user interface (TUI) for viewing documents directly inside your command line. It natively renders Markdown (`.md`) files with rich formatting and themes, and automatically converts non-Markdown files (`.pdf`, `.docx`, `.pptx`, `.xlsx`, etc.) on the fly into clean Markdown.
-
----
-
-## ✨ Features
-
-- **Dual Mode Viewing**:
-  - **Mode 1 (Native Markdown)**: Zero-overhead rendering for `.md` and `.markdown` files.
-  - **Mode 2 (MarkItDown Auto-Conversion)**: Seamlessly converts PDFs, Word documents, PowerPoint presentations, and Excel spreadsheets using `markitdown` in memory.
-- **Top-Right Theme Selector (`[ ⚙ ]`)**: Press `t` or `m` inside the TUI to open an interactive theme menu:
-  - **VS Code Dark+** *(Default)*
-  - **GitHub Light**
-  - **Omarchy Minimal** (Catppuccin Pastel Dark)
-- **Vim & Standard Navigation**: Full keyboard navigation (`j`/`k`, arrow keys, `PageUp`/`PageDown`, `Home`/`g`).
-- **Clean Output Mode**: Use `markd -p <file>` to render markdown directly to stdout.
+<p align="center">
+  <b>Universal Terminal Document & Markdown Viewer</b><br>
+  Fast, modern document viewing directly in your terminal.
+</p>
 
 ---
 
-## 💻 Usage
+## What is markd?
+
+`markd` is a Rust-based terminal viewer for Markdown and common document formats.
+
+It renders Markdown directly and uses [Microsoft MarkItDown](https://github.com/microsoft/markitdown) to convert supported documents such as PDF, Word, PowerPoint, and Excel files into Markdown before displaying them.
+
+## How it works
+
+```text
+Your document
+     │
+     ├── Markdown ──────────► markd
+     │
+     └── PDF / DOCX / PPTX
+         / XLSX / etc.
+              │
+              ▼
+        MarkItDown
+              │
+              ▼
+          Markdown
+              │
+              ▼
+            markd
+              │
+              ▼
+          Terminal TUI
+```
+
+For non-Markdown files, `markd` can automatically create an isolated environment for MarkItDown when it is needed.
+
+## What it does
+
+- View Markdown files in the terminal
+- View PDFs
+- View Word documents
+- View Excel spreadsheets
+- View PowerPoint presentations
+- Switch between developer-focused themes
+- Use the mouse for the theme menu
+- Use Vim-style keyboard navigation
+- Print converted content with `-p`
+
+### Usage
 
 ```bash
-# View native Markdown file
 markd README.md
-
-# View a PDF report
-markd research_paper.pdf
-
-# View a PowerPoint presentation
+markd report.pdf
+markd document.docx
+markd data.xlsx
 markd slides.pptx
+```
 
-# View an Excel spreadsheet
-markd budget.xlsx
+Print mode:
 
-# Print directly to stdout (non-interactive)
+```bash
 markd -p document.pdf
 ```
 
-### Keyboard Controls inside TUI
+## Controls
+
 | Key | Action |
-| :--- | :--- |
-| **`t`** / **`m`** | Open / Close the top-right **`[ ⚙ ]`** Theme Menu |
-| **`1`**, **`2`**, **`3`** | Switch directly to VS Code, Light, or Omarchy theme |
-| **`j`** / **`Down`** | Scroll down 1 line |
-| **`k`** / **`Up`** | Scroll up 1 line |
-| **`Space`** / **`PageDown`** | Scroll down 1 page |
-| **`b`** / **`PageUp`** | Scroll up 1 page |
-| **`g`** / **`Home`** | Reset scroll position to top |
-| **`q`** / **`Esc`** | Exit viewer |
+|---|---|
+| `t` / `m` | Open theme menu |
+| `1`–`9` | Select themes 1–9 |
+| `0` | Select theme 10 |
+| `j` / `↓` | Scroll down |
+| `k` / `↑` | Scroll up |
+| `f` / `PageDown` | Page down |
+| `b` / `PageUp` | Page up |
+| `Space` | Page down |
+| `g` / `Home` | Go to top |
+| `G` | Go to bottom |
+| `Esc` | Exit |
+
+### Mouse
+
+- Hover `⚙` to open the theme menu
+- Hover a theme to highlight it
+- Click a theme to apply it
+- Click outside the menu to close it
+
+## Themes
+
+- VS Code Dark+
+- GitHub Dark
+- GitHub Light
+- Dracula
+- Catppuccin
+- Nord
+- Gruvbox
+- Tokyo Night
+- One Dark
+- Omarchy
+
+## Installation
+
+Prebuilt `.deb`, `.rpm`, and Linux binary releases are available from the GitHub Releases page.
+
+Build from source:
+
+```bash
+git clone https://github.com/Rktim/markd.git
+cd markd
+cargo build --release
 ```
+
+Run:
+
+```bash
+./target/release/markd README.md
+```
+
+## License
+
+MIT
