@@ -10,7 +10,6 @@
 </p>
 
 ---
-
 ## What is markd?
 
 `markd` is a Rust-based terminal viewer for Markdown and common document formats.
@@ -41,6 +40,9 @@ Your document
 ```
 
 For non-Markdown files, `markd` can automatically create an isolated environment for MarkItDown when it is needed.
+
+[![Watch a one-minute video tour of markd](https://gitdiagram.com/video-badge.svg)](https://gitdiagram.com/rktim/markd/video)
+
 
 ## What it does
 
