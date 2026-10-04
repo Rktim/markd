@@ -14,42 +14,57 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # --------------------------------------------------
       # Checkout
+      # --------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # --------------------------------------------------
       # Rust Toolchain
+      # --------------------------------------------------
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      # Packaging Tools
-      - name: Install packaging tools
+      # --------------------------------------------------
+      # Fast Packaging Tools Installation
+      # --------------------------------------------------
+      - name: Install packaging tools (cargo-deb, cargo-generate-rpm)
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-deb,cargo-generate-rpm
 
+      # --------------------------------------------------
       # Tests
+      # --------------------------------------------------
       - name: Run tests
         run: cargo test --verbose
 
-      # Build
+      # --------------------------------------------------
+      # Build Release Binary
+      # --------------------------------------------------
       - name: Build release binary
         run: cargo build --release
 
-      # Debian Package
+      # --------------------------------------------------
+      # Debian Package (.deb)
+      # --------------------------------------------------
       - name: Build Debian package
         run: cargo deb
 
-      # RPM Package
+      # --------------------------------------------------
+      # RPM Package (.rpm)
+      # --------------------------------------------------
       - name: Build RPM package
         run: cargo generate-rpm
 
-      # Linux Tarball
+      # --------------------------------------------------
+      # Portable Linux Tarball (.tar.gz)
+      # --------------------------------------------------
       - name: Create Linux tarball
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           ARCHIVE_DIR="markd-v${VERSION}-x86_64-unknown-linux-gnu"
-
           mkdir -p "/tmp/${ARCHIVE_DIR}"
 
           cp target/release/markd "/tmp/${ARCHIVE_DIR}/"
@@ -58,12 +73,13 @@ jobs:
 
           tar -czvf \
             "${ARCHIVE_DIR}.tar.gz" \
-            -C /tmp \
-            "${ARCHIVE_DIR}"
+            -C /tmp "${ARCHIVE_DIR}"
 
           echo "TARBALL=${ARCHIVE_DIR}.tar.gz" >> "$GITHUB_ENV"
 
+      # --------------------------------------------------
       # Verify Artifacts
+      # --------------------------------------------------
       - name: List release artifacts
         run: |
           echo "=== Debian Package ==="
@@ -77,7 +93,9 @@ jobs:
           echo "=== Portable Tarball ==="
           ls -lh "$TARBALL"
 
+      # --------------------------------------------------
       # GitHub Release
+      # --------------------------------------------------
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
