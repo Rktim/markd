@@ -1,101 +1,106 @@
 name: Release
 
-on:
-  push:
-    tags:
-      - "v*"
+    on:
+      push:
+        tags:
+          - "v*"
 
-permissions:
-  contents: write
+    permissions:
+      contents: write
 
-jobs:
-  release:
-    name: Build & Publish Release
-    runs-on: ubuntu-latest
+    jobs:
+      release:
+        name: Build & Publish Release
+        runs-on: ubuntu-latest
 
-    steps:
-      # --------------------------------------------------
-      # Checkout
-      # --------------------------------------------------
-      - name: Checkout repository
-        uses: actions/checkout@v4
+        steps:
+          # --------------------------------------------------
+          # Checkout
+          # --------------------------------------------------
+          - name: Checkout repository
+            uses: actions/checkout@v4
 
-      # --------------------------------------------------
-      # Rust
-      # --------------------------------------------------
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+          # --------------------------------------------------
+          # Rust Toolchain
+          # --------------------------------------------------
+          - name: Install Rust
+            uses: dtolnay/rust-toolchain@stable
 
-      # --------------------------------------------------
-      # Packaging tools
-      # --------------------------------------------------
-      - name: Install cargo-deb
-        run: cargo install cargo-deb
+          # --------------------------------------------------
+          # Packaging Tools (Pre-compiled, ~3 seconds)
+          # --------------------------------------------------
+          - name: Install packaging tools (cargo-deb, cargo-generate-rpm)
+            uses: taiki-e/install-action@v2
+            with:
+              tool: cargo-deb,cargo-generate-rpm
 
-      - name: Install cargo-generate-rpm
-        run: cargo install cargo-generate-rpm
+          # --------------------------------------------------
+          # Automated Tests
+          # --------------------------------------------------
+          - name: Run tests
+            run: cargo test --verbose
 
-      # --------------------------------------------------
-      # Build
-      # --------------------------------------------------
-      - name: Build release binary
-        run: cargo build --release
+          # --------------------------------------------------
+          # Build Release Binary
+          # --------------------------------------------------
+          - name: Build release binary
+            run: cargo build --release
 
-      # --------------------------------------------------
-      # Debian package
-      # --------------------------------------------------
-      - name: Build Debian package
-        run: cargo deb
+          # --------------------------------------------------
+          # Debian Package (.deb)
+          # --------------------------------------------------
+          - name: Build Debian package
+            run: cargo deb
 
-      # --------------------------------------------------
-      # RPM package
-      # --------------------------------------------------
-      - name: Build RPM package
-        run: cargo generate-rpm
+          # --------------------------------------------------
+          # RPM Package (.rpm)
+          # --------------------------------------------------
+          - name: Build RPM package
+            run: cargo generate-rpm
 
-      # --------------------------------------------------
-      # Portable Linux tarball
-      # --------------------------------------------------
-      - name: Create Linux tarball
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          # --------------------------------------------------
+          # Portable Linux Tarball (.tar.gz)
+          # --------------------------------------------------
+          - name: Create Linux tarball
+            run: |
+              VERSION="${GITHUB_REF_NAME#v}"
+              ARCHIVE_DIR="markd-v${VERSION}-x86_64-unknown-linux-gnu"
+              mkdir -p "/tmp/${ARCHIVE_DIR}"
 
-          mkdir -p /tmp/markd-release
+              cp target/release/markd "/tmp/${ARCHIVE_DIR}/"
+              cp README.md "/tmp/${ARCHIVE_DIR}/"
+              cp LICENSE "/tmp/${ARCHIVE_DIR}/"
 
-          cp target/release/markd /tmp/markd-release/
-          cp README.md /tmp/markd-release/
-          cp LICENSE /tmp/markd-release/
+              tar -czvf \
+                "${ARCHIVE_DIR}.tar.gz" \
+                -C /tmp "${ARCHIVE_DIR}"
 
-          tar -czvf \
-            "markd-v${VERSION}-x86_64-unknown-linux-gnu.tar.gz" \
-            -C /tmp markd-release
+              echo "TARBALL=${ARCHIVE_DIR}.tar.gz" >> "$GITHUB_ENV"
 
-          echo "TARBALL=markd-v${VERSION}-x86_64-unknown-linux-gnu.tar.gz" >> "$GITHUB_ENV"
+          # --------------------------------------------------
+          # Verify Artifacts
+          # --------------------------------------------------
+          - name: List release artifacts
+            run: |
+              echo "=== Debian Package ==="
+              ls -lh target/debian/*.deb
 
-      # --------------------------------------------------
-      # Verify artifacts
-      # --------------------------------------------------
-      - name: List release artifacts
-        run: |
-          echo "=== Debian ==="
-          ls -lh target/debian/
+              echo ""
+              echo "=== RPM Package ==="
+              ls -lh target/generate-rpm/*.rpm
 
-          echo ""
-          echo "=== RPM ==="
-          ls -lh target/generate-rpm/
+              echo ""
+              echo "=== Portable Tarball ==="
+              ls -lh "$TARBALL"
 
-          echo ""
-          echo "=== Tarball ==="
-          ls -lh "$TARBALL"
-
-      # --------------------------------------------------
-      # GitHub Release
-      # --------------------------------------------------
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          generate_release_notes: true
-          files: |
-            target/debian/*.deb
-            target/generate-rpm/*.rpm
-            ${{ env.TARBALL }}
+          # --------------------------------------------------
+          # GitHub Release
+          # --------------------------------------------------
+          - name: Publish GitHub Release
+            uses: softprops/action-gh-release@v2
+            with:
+              generate_release_notes: true
+              files: |
+                target/debian/*.deb
+                target/generate-rpm/*.rpm
+                ${{ env.TARBALL }}
