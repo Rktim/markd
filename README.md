@@ -5,95 +5,134 @@
 </p>
 
 <p align="center">
-  <b>Universal Terminal Document & Markdown Viewer</b><br>
-  Fast, modern document viewing directly in your terminal.
+  <b>Universal Terminal Document & Markdown Viewer & Editor</b><br>
+  Fast, modern document viewing and editing directly in your terminal.
 </p>
 
 ---
+
 ## What is markd?
 
-`markd` is a Rust-based terminal viewer for Markdown and common document formats.
+`markd` is a fast, keyboard-driven terminal document viewer and interactive text editor written in Rust.
 
-It renders Markdown directly and uses [Microsoft MarkItDown](https://github.com/microsoft/markitdown) to convert supported documents such as PDF, Word, PowerPoint, and Excel files into Markdown before displaying them.
+It combines two seamless modes:
+1. **Document Viewer**: Fast Markdown rendering with 10 developer-focused themes, Vim-style navigation, and automatic conversion of office documents (PDF, Word, Excel, PowerPoint) into formatted Markdown via [Microsoft MarkItDown](https://github.com/microsoft/markitdown).
+2. **Built-in Interactive Editor**: Full-featured text editor with live cursor, line-number gutter, undo/redo, smart auto-indentation, line duplication/deletion, and instant disk saving.
 
 ## How it works
 
 ```text
 Your document
      │
-     ├── Markdown ──────────► markd
-     │
-     └── PDF / DOCX / PPTX
-         / XLSX / etc.
-              │
+     ├── Markdown (.md, .txt) ────► markd
+     │                                │
+     └── PDF / DOCX / PPTX            ├───► Viewer Mode (Themes, Scrolling, Search)
+         / XLSX / etc.                │
+              │                       └───► Editor Mode (Undo, Auto-Indent, Save)
               ▼
-        MarkItDown
+         MarkItDown
               │
               ▼
           Markdown
-              │
-              ▼
-            markd
-              │
-              ▼
-          Terminal TUI
 ```
 
-For non-Markdown files, `markd` can automatically create an isolated environment for MarkItDown when it is needed.
-
-[![Watch a one-minute video tour of markd](https://gitdiagram.com/video-badge.svg)](https://gitdiagram.com/rktim/markd/video)
-
+For non-Markdown files, `markd` automatically invokes an isolated MarkItDown environment to convert documents on the fly.
 
 ## What it does
 
-- View Markdown files in the terminal
-- View PDFs
-- View Word documents
-- View Excel spreadsheets
-- View PowerPoint presentations
-- Switch between developer-focused themes
-- Use the mouse for the theme menu
-- Use Vim-style keyboard navigation
-- Print converted content with `-p`
+- **Dual-Mode Workflow**: Switch seamlessly between document viewing and full-screen editing with a single keystroke (`e` to edit, `Esc` to view).
+- **Built-in Interactive Editor**: Live cursor positioning, line numbers, undo/redo history (`Ctrl+Z` / `Ctrl+Y`), line deletion (`Ctrl+K`), and line duplication (`Ctrl+D`).
+- **Smart Auto-Indent**: Automatically preserves indentation whitespace and continues Markdown list bullets (`- `, `* `, `1. `) upon pressing `Enter`.
+- **Universal Document Conversion**: View PDFs, Word documents, Excel spreadsheets, and PowerPoint presentations.
+- **Code Syntax Highlighting**: Fenced code blocks (`html`, `css`, `xml`, etc.) rendered with TrueColor ANSI syntax highlighting.
+- **10 Built-in Themes**: Switch themes live via mouse or keyboard shortcuts.
+- **Mouse & Vim Navigation**: Scroll with mouse wheel, click to position cursor in editor, or navigate with Vim keys (`j`/`k`, `g`/`G`).
+- **Print Mode**: Use `-p` to pipe converted Markdown directly to stdout.
 
-### Usage
+## Installation
+
+### From Debian Package (`.deb`)
+
+Download or use the generated package:
 
 ```bash
-markd README.md
-markd report.pdf
-markd document.docx
-markd data.xlsx
-markd slides.pptx
+sudo dpkg -i markd.deb
 ```
 
-Print mode:
+### From Source via Cargo
 
 ```bash
+git clone https://github.com/Rktim/markd.git
+cd markd
+cargo install --path . --force
+```
+
+### Build Binary
+
+```bash
+cargo build --release
+./target/release/markd --help
+```
+
+## Usage
+
+```bash
+# View documents in the terminal
+markd README.md
+markd report.pdf
+markd notes.docx
+markd budget.xlsx
+
+# Open directly into the built-in editor
+markd -e notes.md
+
+# Print converted markdown directly to stdout
 markd -p document.pdf
+
+# Check version
+markd -v
 ```
 
 ## Controls
 
+### Viewer Mode
+
 | Key | Action |
 |---|---|
-| `t` / `m` | Open theme menu |
-| `1`–`9` | Select themes 1–9 |
+| `e` | Open built-in interactive editor |
+| `t` / `m` | Open theme selector menu |
+| `1`–`9` | Select theme by index |
 | `0` | Select theme 10 |
-| `j` / `↓` | Scroll down |
-| `k` / `↑` | Scroll up |
-| `f` / `PageDown` | Page down |
+| `j` / `↓` | Scroll down one line |
+| `k` / `↑` | Scroll up one line |
+| `f` / `PageDown` / `Space` | Page down |
 | `b` / `PageUp` | Page up |
-| `Space` | Page down |
-| `g` / `Home` | Go to top |
-| `G` | Go to bottom |
-| `Esc` | Exit |
+| `g` / `Home` | Go to top of document |
+| `G` | Go to bottom of document |
+| `q` / `Esc` | Quit markd |
 
-### Mouse
+### Editor Mode
 
-- Hover `⚙` to open the theme menu
-- Hover a theme to highlight it
-- Click a theme to apply it
-- Click outside the menu to close it
+| Key | Action |
+|---|---|
+| `Ctrl+S` | Save changes to disk |
+| `Ctrl+Z` | Undo last change |
+| `Ctrl+Y` | Redo change |
+| `Ctrl+K` | Delete current line |
+| `Ctrl+D` | Duplicate current line |
+| `Ctrl+A` / `Home` | Jump to line start |
+| `Ctrl+E` / `End` | Jump to line end |
+| `Tab` | Indent (4 spaces) |
+| `Enter` | Smart auto-indent (preserves indent & bullet lists) |
+| `Esc` / `Ctrl+Q` | Return to document viewer |
+
+### Mouse Controls
+
+- Click **`[ ✎ Edit ]`** in header to enter editor mode
+- Click any line inside the editor to position cursor
+- Hover **`⚙`** to open the theme menu
+- Click any theme in the menu to apply it
+- Click outside the menu to dismiss
 
 ## Themes
 
@@ -107,24 +146,6 @@ markd -p document.pdf
 - Tokyo Night
 - One Dark
 - Omarchy
-
-## Installation
-
-Prebuilt `.deb`, `.rpm`, and Linux binary releases are available from the GitHub Releases page.
-
-Build from source:
-
-```bash
-git clone https://github.com/Rktim/markd.git
-cd markd
-cargo build --release
-```
-
-Run:
-
-```bash
-./target/release/markd README.md
-```
 
 ## License
 

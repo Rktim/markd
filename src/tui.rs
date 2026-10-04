@@ -35,9 +35,16 @@ use std::time::Duration;
 use termimad::{Area, MadView};
 
 use crate::document::{Document, DocumentMode};
+use crate::editor::Editor;
 use crate::theme::Theme;
 
-pub fn run(document: &Document) -> Result<(), Box<dyn Error>> {
+#[derive(PartialEq, Eq)]
+enum AppMode {
+    View,
+    Edit,
+}
+
+pub fn run(document: &mut Document, start_in_edit_mode: bool) -> Result<(), Box<dyn Error>> {
     let mut stdout = stdout();
 
     terminal::enable_raw_mode()?;
@@ -47,10 +54,12 @@ pub fn run(document: &Document) -> Result<(), Box<dyn Error>> {
     stdout.queue(Hide)?;
     stdout.flush()?;
 
-    // Opening animation.
-    intro_animation(&mut stdout)?;
+    // Opening animation only when viewing an existing document without direct edit flag.
+    if !start_in_edit_mode && !document.content.is_empty() {
+        intro_animation(&mut stdout)?;
+    }
 
-    let result = run_loop(document, &mut stdout);
+    let result = run_loop(document, start_in_edit_mode, &mut stdout);
 
     // Always restore terminal state.
     let _ = stdout.queue(Show);
@@ -272,14 +281,20 @@ fn intro_animation(
 }
 
 fn run_loop(
-    document: &Document,
+    document: &mut Document,
+    start_in_edit_mode: bool,
     stdout: &mut Stdout,
 ) -> Result<(), Box<dyn Error>> {
     let mut current_theme = Theme::VsCode;
     let mut selected_theme = 0usize;
     let mut menu_open = false;
+    let mut app_mode = if start_in_edit_mode || document.content.is_empty() {
+        AppMode::Edit
+    } else {
+        AppMode::View
+    };
 
-    let (width, height) = terminal::size()?;
+    let (mut width, mut height) = terminal::size()?;
 
     let mut area = Area::new(
         0,
@@ -289,185 +304,255 @@ fn run_loop(
     );
 
     let mut view = MadView::from(
-        document.content.clone(),
+        document.view_markdown(),
         area.clone(),
         current_theme.skin(),
     );
 
+    let mut editor = Editor::new(&document.content, document.source_path.clone());
+
     loop {
-        render(
-            document,
-            &mut view,
-            current_theme,
-            menu_open,
-            selected_theme,
-            stdout,
-        )?;
+        match app_mode {
+            AppMode::Edit => {
+                editor.render(stdout, width, height)?;
 
-        match event::read()? {
-            Event::Key(key)
-                if key.kind == KeyEventKind::Press =>
-            {
-                if menu_open {
-                    handle_menu_key(
-                        key.code,
-                        document,
-                        &mut view,
-                        &mut current_theme,
-                        &mut selected_theme,
-                        &area,
-                        &mut menu_open,
-                    )?;
-                } else {
-                    match key.code {
-                        // Esc = quit
-                        KeyCode::Esc => {
-                            break;
+                match event::read()? {
+                    Event::Key(key) if key.kind == KeyEventKind::Press => {
+                        // Ctrl+S: Save
+                        if key.modifiers.contains(event::KeyModifiers::CONTROL) && key.code == KeyCode::Char('s') {
+                            let _ = editor.save();
+                            document.content = editor.get_content();
+                            continue;
                         }
 
-                        // Open theme menu
-                        KeyCode::Char('t')
-                        | KeyCode::Char('m') => {
-                            menu_open = true;
-                        }
-
-                        // Scroll
-                        KeyCode::Down
-                        | KeyCode::Char('j') => {
-                            view.try_scroll_lines(1);
-                        }
-
-                        KeyCode::Up
-                        | KeyCode::Char('k') => {
-                            view.try_scroll_lines(-1);
-                        }
-
-                        // Page down
-                        KeyCode::PageDown
-                        | KeyCode::Char('f')
-                        | KeyCode::Char(' ') => {
-                            view.try_scroll_pages(1);
-                        }
-
-                        // Page up
-                        KeyCode::PageUp
-                        | KeyCode::Char('b') => {
-                            view.try_scroll_pages(-1);
-                        }
-
-                        // Top
-                        KeyCode::Home
-                        | KeyCode::Char('g') => {
-                            view.scroll = 0;
-                        }
-
-                        // Bottom
-                        KeyCode::Char('G') => {
-                            view.scroll = usize::MAX;
-                        }
-
-                        _ => {}
-                    }
-                }
-            }
-
-            Event::Mouse(mouse) => {
-                let (term_w, _) = terminal::size()?;
-
-                let gear_x = term_w.saturating_sub(7);
-
-                // Hover gear -> open menu.
-                let over_gear =
-                    mouse.row == 0
-                        && mouse.column >= gear_x
-                        && mouse.column < term_w;
-
-                if over_gear {
-                    menu_open = true;
-                    continue;
-                }
-
-                if menu_open {
-                    let (
-                        menu_x,
-                        menu_y,
-                        menu_w,
-                        menu_h,
-                    ) = menu_geometry(term_w);
-
-                    let over_menu = inside(
-                        mouse.column,
-                        mouse.row,
-                        menu_x,
-                        menu_y,
-                        menu_w,
-                        menu_h,
-                    );
-
-                    if over_menu {
-                        let theme_start =
-                            menu_y + 3;
-
-                        let theme_end =
-                            theme_start
-                                + Theme::ALL.len() as u16;
-
-                        if mouse.row >= theme_start
-                            && mouse.row < theme_end
+                        // Esc or Ctrl+Q: Return to View mode
+                        if key.code == KeyCode::Esc
+                            || (key.modifiers.contains(event::KeyModifiers::CONTROL) && key.code == KeyCode::Char('q'))
                         {
-                            let index =
-                                (mouse.row - theme_start)
-                                    as usize;
+                            document.content = editor.get_content();
+                            let scroll = view.scroll;
+                            view = rebuild_view(document, &area, current_theme, scroll);
+                            stdout.queue(Hide)?;
+                            app_mode = AppMode::View;
+                            continue;
+                        }
 
-                            if index < Theme::ALL.len() {
-                                selected_theme = index;
-
-                                if mouse.kind
-                                    == MouseEventKind::Down(
-                                        MouseButton::Left,
-                                    )
-                                {
-                                    current_theme =
-                                        Theme::ALL[index];
-
-                                    let scroll =
-                                        view.scroll;
-
-                                    view = rebuild_view(
-                                        document,
-                                        &area,
-                                        current_theme,
-                                        scroll,
-                                    );
-
-                                    menu_open = false;
+                        // Ctrl shortcuts for editing
+                        if key.modifiers.contains(event::KeyModifiers::CONTROL) {
+                            match key.code {
+                                KeyCode::Char('z') => {
+                                    editor.undo();
+                                    continue;
                                 }
+                                KeyCode::Char('y') => {
+                                    editor.redo();
+                                    continue;
+                                }
+                                KeyCode::Char('k') => {
+                                    editor.delete_line();
+                                    continue;
+                                }
+                                KeyCode::Char('d') => {
+                                    editor.duplicate_line();
+                                    continue;
+                                }
+                                KeyCode::Char('a') => {
+                                    editor.move_to_line_start();
+                                    continue;
+                                }
+                                KeyCode::Char('e') => {
+                                    editor.move_to_line_end();
+                                    continue;
+                                }
+                                _ => {}
                             }
                         }
 
-                        continue;
+                        match key.code {
+                            KeyCode::Up => editor.move_cursor_up(),
+                            KeyCode::Down => editor.move_cursor_down(),
+                            KeyCode::Left => editor.move_cursor_left(),
+                            KeyCode::Right => editor.move_cursor_right(),
+                            KeyCode::Home => editor.move_to_line_start(),
+                            KeyCode::End => editor.move_to_line_end(),
+                            KeyCode::PageUp => editor.page_up(height as usize / 2),
+                            KeyCode::PageDown => editor.page_down(height as usize / 2),
+                            KeyCode::Backspace => editor.backspace(),
+                            KeyCode::Delete => editor.delete(),
+                            KeyCode::Enter => editor.insert_newline(),
+                            KeyCode::Tab => editor.insert_tab(),
+                            KeyCode::Char(c) => editor.insert_char(c),
+                            _ => {}
+                        }
                     }
 
-                    // Close when leaving popup.
-                    menu_open = false;
+                    Event::Mouse(mouse) => {
+                        match mouse.kind {
+                            MouseEventKind::Down(MouseButton::Left) => {
+                                editor.click_at(mouse.column, mouse.row, editor.gutter_width());
+                            }
+                            MouseEventKind::ScrollDown => {
+                                editor.move_cursor_down();
+                            }
+                            MouseEventKind::ScrollUp => {
+                                editor.move_cursor_up();
+                            }
+                            _ => {}
+                        }
+                    }
+
+                    Event::Resize(new_width, new_height) => {
+                        width = new_width;
+                        height = new_height;
+                        area = Area::new(0, 1, new_width, new_height.saturating_sub(2));
+                        view.resize(&area);
+                    }
+
+                    _ => {}
                 }
             }
 
-            Event::Resize(
-                new_width,
-                new_height,
-            ) => {
-                area = Area::new(
-                    0,
-                    1,
-                    new_width,
-                    new_height.saturating_sub(2),
-                );
+            AppMode::View => {
+                stdout.queue(Hide)?;
+                render(
+                    document,
+                    &mut view,
+                    current_theme,
+                    menu_open,
+                    selected_theme,
+                    stdout,
+                )?;
 
-                view.resize(&area);
+                match event::read()? {
+                    Event::Key(key) if key.kind == KeyEventKind::Press => {
+                        if menu_open {
+                            handle_menu_key(
+                                key.code,
+                                document,
+                                &mut view,
+                                &mut current_theme,
+                                &mut selected_theme,
+                                &area,
+                                &mut menu_open,
+                            )?;
+                        } else {
+                            match key.code {
+                                // Esc or q = quit
+                                KeyCode::Esc | KeyCode::Char('q') => {
+                                    break;
+                                }
+
+                                // 'e' = enter edit mode
+                                KeyCode::Char('e') => {
+                                    editor = Editor::new(&document.content, document.source_path.clone());
+                                    app_mode = AppMode::Edit;
+                                }
+
+                                // Open theme menu
+                                KeyCode::Char('t') | KeyCode::Char('m') => {
+                                    menu_open = true;
+                                }
+
+                                // Scroll
+                                KeyCode::Down | KeyCode::Char('j') => {
+                                    view.try_scroll_lines(1);
+                                }
+
+                                KeyCode::Up | KeyCode::Char('k') => {
+                                    view.try_scroll_lines(-1);
+                                }
+
+                                // Page down
+                                KeyCode::PageDown | KeyCode::Char('f') | KeyCode::Char(' ') => {
+                                    view.try_scroll_pages(1);
+                                }
+
+                                // Page up
+                                KeyCode::PageUp | KeyCode::Char('b') => {
+                                    view.try_scroll_pages(-1);
+                                }
+
+                                // Top
+                                KeyCode::Home | KeyCode::Char('g') => {
+                                    view.scroll = 0;
+                                }
+
+                                // Bottom
+                                KeyCode::Char('G') => {
+                                    view.scroll = usize::MAX;
+                                }
+
+                                _ => {}
+                            }
+                        }
+                    }
+
+                    Event::Mouse(mouse) => {
+                        let (term_w, _) = terminal::size()?;
+                        let gear_x = term_w.saturating_sub(7);
+                        let edit_btn_x = term_w.saturating_sub(23);
+
+                        // Click edit button -> open editor
+                        if mouse.row == 0
+                            && mouse.column >= edit_btn_x
+                            && mouse.column < gear_x
+                            && mouse.kind == MouseEventKind::Down(MouseButton::Left)
+                        {
+                            editor = Editor::new(&document.content, document.source_path.clone());
+                            app_mode = AppMode::Edit;
+                            continue;
+                        }
+
+                        // Hover gear -> open menu
+                        let over_gear = mouse.row == 0 && mouse.column >= gear_x && mouse.column < term_w;
+
+                        if over_gear {
+                            menu_open = true;
+                            continue;
+                        }
+
+                        if menu_open {
+                            let (menu_x, menu_y, menu_w, menu_h) = menu_geometry(term_w);
+
+                            let over_menu = inside(mouse.column, mouse.row, menu_x, menu_y, menu_w, menu_h);
+
+                            if over_menu {
+                                let theme_start = menu_y + 3;
+                                let theme_end = theme_start + Theme::ALL.len() as u16;
+
+                                if mouse.row >= theme_start && mouse.row < theme_end {
+                                    let index = (mouse.row - theme_start) as usize;
+
+                                    if index < Theme::ALL.len() {
+                                        selected_theme = index;
+
+                                        if mouse.kind == MouseEventKind::Down(MouseButton::Left) {
+                                            current_theme = Theme::ALL[index];
+                                            let scroll = view.scroll;
+                                            view = rebuild_view(document, &area, current_theme, scroll);
+                                            menu_open = false;
+                                        }
+                                    }
+                                }
+
+                                continue;
+                            }
+
+                            // Close when leaving popup.
+                            menu_open = false;
+                        }
+                    }
+
+                    Event::Resize(new_width, new_height) => {
+                        width = new_width;
+                        height = new_height;
+                        area = Area::new(0, 1, new_width, new_height.saturating_sub(2));
+                        view.resize(&area);
+                    }
+
+                    _ => {}
+                }
             }
-
-            _ => {}
         }
     }
 
@@ -595,7 +680,7 @@ fn rebuild_view(
     scroll: usize,
 ) -> MadView {
     let mut view = MadView::from(
-        document.content.clone(),
+        document.view_markdown(),
         area.clone(),
         theme.skin(),
     );
@@ -684,16 +769,11 @@ fn render_header(
     )?;
 
     let mode = match &document.mode {
-        DocumentMode::Markdown => {
-            "Markdown".to_string()
-        }
-
-        DocumentMode::Converted(ext) => {
-            format!(
-                "{} → MD",
-                ext.to_uppercase()
-            )
-        }
+        DocumentMode::Markdown => "Markdown".to_string(),
+        DocumentMode::Html => "HTML → MD".to_string(),
+        DocumentMode::Css => "CSS".to_string(),
+        DocumentMode::Xml => "XML".to_string(),
+        DocumentMode::Converted(ext) => format!("{} → MD", ext.to_uppercase()),
     };
 
     let left = format!(
@@ -703,51 +783,34 @@ fn render_header(
         theme.name(),
     );
 
+    let edit_btn = " [ ✎ EDIT (Press 'e') ] ";
     let gear = " [ ⚙ ] ";
 
-    let left_len =
-        left.chars().count();
+    let left_len = left.chars().count();
+    let buttons_len = edit_btn.chars().count() + gear.chars().count();
 
-    let gear_len = 7usize;
+    let padding = (width as usize).saturating_sub(left_len + buttons_len);
 
-    let padding =
-        (width as usize)
-            .saturating_sub(
-                left_len + gear_len
-            );
-
-    stdout.queue(
-        Print(format!(
-            "{}{}{}",
-            left,
-            " ".repeat(padding),
-            gear
-        )),
-    )?;
+    stdout.queue(Print(format!(
+        "{}{}{}{}",
+        left,
+        " ".repeat(padding),
+        edit_btn,
+        gear
+    )))?;
 
     if menu_open && width >= 7 {
-        let gear_x =
-            width.saturating_sub(7);
+        let gear_x = width.saturating_sub(7);
 
-        stdout.queue(
-            MoveTo(gear_x, 0)
-        )?;
+        stdout.queue(MoveTo(gear_x, 0))?;
 
-        stdout.queue(
-            SetBackgroundColor(
-                Color::Rgb {
-                    r: 86,
-                    g: 156,
-                    b: 214,
-                },
-            ),
-        )?;
+        stdout.queue(SetBackgroundColor(Color::Rgb {
+            r: 86,
+            g: 156,
+            b: 214,
+        }))?;
 
-        stdout.queue(
-            SetForegroundColor(
-                Color::Black
-            )
-        )?;
+        stdout.queue(SetForegroundColor(Color::Black))?;
 
         stdout.queue(Print(gear))?;
     }
@@ -764,44 +827,30 @@ fn render_status_bar(
     width: u16,
     stdout: &mut Stdout,
 ) -> Result<(), Box<dyn Error>> {
-    let y =
-        height.saturating_sub(1);
+    let y = height.saturating_sub(1);
 
-    stdout.queue(
-        MoveTo(0, y)
-    )?;
+    stdout.queue(MoveTo(0, y))?;
 
-    stdout.queue(
-        SetBackgroundColor(
-            Color::Rgb {
-                r: 30,
-                g: 30,
-                b: 38,
-            },
-        ),
-    )?;
+    stdout.queue(SetBackgroundColor(Color::Rgb {
+        r: 30,
+        g: 30,
+        b: 38,
+    }))?;
 
-    stdout.queue(
-        SetForegroundColor(
-            Color::Rgb {
-                r: 180,
-                g: 180,
-                b: 190,
-            },
-        ),
-    )?;
+    stdout.queue(SetForegroundColor(Color::Rgb {
+        r: 180,
+        g: 180,
+        b: 190,
+    }))?;
 
-    let filename =
-        document
-            .source_path
-            .rsplit('/')
-            .next()
-            .unwrap_or(
-                &document.source_path
-            );
+    let filename = document
+        .source_path
+        .rsplit('/')
+        .next()
+        .unwrap_or(&document.source_path);
 
     let status = format!(
-        " {} │ {} │ j/k scroll │ f/b page │ t themes │ Esc exit",
+        " {} │ {} │ e: EDIT │ j/k: scroll │ f/b: page │ t: themes │ Esc: exit",
         filename,
         theme.name(),
     );

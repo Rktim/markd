@@ -5,6 +5,8 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
+use crate::syntax;
+
 pub struct Document {
     pub source_path: String,
     pub content: String,
@@ -13,14 +15,42 @@ pub struct Document {
 
 pub enum DocumentMode {
     Markdown,
+    Html,
+    Css,
+    Xml,
     Converted(String),
+}
+
+impl Document {
+    pub fn view_markdown(&self) -> String {
+        match &self.mode {
+            DocumentMode::Markdown | DocumentMode::Html => {
+                syntax::prepare_markdown_view(&self.content)
+            }
+            DocumentMode::Css => {
+                let wrapped = format!("```css\n{}\n```", self.content);
+                syntax::prepare_markdown_view(&wrapped)
+            }
+            DocumentMode::Xml => {
+                let wrapped = format!("```xml\n{}\n```", self.content);
+                syntax::prepare_markdown_view(&wrapped)
+            }
+            DocumentMode::Converted(_) => {
+                syntax::prepare_markdown_view(&self.content)
+            }
+        }
+    }
 }
 
 pub fn load(file_path: &str) -> Result<Document, Box<dyn Error>> {
     let path = Path::new(file_path);
 
     if !path.exists() {
-        return Err(format!("File '{}' does not exist.", file_path).into());
+        return Ok(Document {
+            source_path: file_path.to_string(),
+            content: String::new(),
+            mode: DocumentMode::Markdown,
+        });
     }
 
     if !path.is_file() {
@@ -42,6 +72,38 @@ pub fn load(file_path: &str) -> Result<Document, Box<dyn Error>> {
             mode: DocumentMode::Markdown,
         });
     }
+
+    if extension == "html" || extension == "htm" {
+        let content = fs::read_to_string(path)?;
+
+        return Ok(Document {
+            source_path: file_path.to_string(),
+            content,
+            mode: DocumentMode::Html,
+        });
+    }
+
+    if extension == "css" || extension == "scss" || extension == "less" {
+        let content = fs::read_to_string(path)?;
+
+        return Ok(Document {
+            source_path: file_path.to_string(),
+            content,
+            mode: DocumentMode::Css,
+        });
+    }
+
+    if extension == "xml" || extension == "xhtml" {
+        let content = fs::read_to_string(path)?;
+
+        return Ok(Document {
+            source_path: file_path.to_string(),
+            content,
+            mode: DocumentMode::Xml,
+        });
+    }
+
+
 
     println!("markd: '{}' detected. Preparing MarkItDown...", extension);
 
@@ -71,7 +133,7 @@ pub fn load(file_path: &str) -> Result<Document, Box<dyn Error>> {
 }
 
 pub fn print_document(document: &Document) {
-    print!("{}", document.content);
+    print!("{}", document.view_markdown());
 
     let _ = std::io::stdout().flush();
 }

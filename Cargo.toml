@@ -1,14 +1,14 @@
 [package]
 name = "markd"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["Rktim <raktimkalita.ai@gmail.com>"]
-description = "Universal Terminal Document & Markdown Viewer powered by Rust and MarkItDown"
+description = "Universal Terminal Document & Markdown Viewer and Editor powered by Rust and MarkItDown"
 readme = "README.md"
 homepage = "https://github.com/Rktim/markd"
 repository = "https://github.com/Rktim/markd"
 license = "MIT"
-keywords = ["markdown", "tui", "viewer", "terminal", "markitdown"]
+keywords = ["markdown", "tui", "viewer", "editor", "markitdown"]
 categories = ["command-line-utilities", "text-processing"]
 
 [dependencies]
@@ -21,10 +21,10 @@ maintainer = "Raktim <raktimkalita.ai@gmail.com>"
 copyright = "2026, Raktim <raktimkalita.ai@gmail.com>"
 license-file = ["LICENSE", "0"]
 extended-description = """\
-markd is a fast, universal terminal document viewer.
-It native-renders Markdown (.md) and converts non-Markdown documents
-(.pdf, .docx, .pptx, .xlsx, etc.) on the fly using MarkItDown into an interactive
-VS Code / Omarchy styled terminal TUI.
+markd is a fast, universal terminal document viewer and interactive text editor.
+It native-renders Markdown (.md), converts non-Markdown documents
+(.pdf, .docx, .pptx, .xlsx, etc.) on the fly using MarkItDown, and provides a
+built-in full-screen interactive editor buffer with live cursor and undo/redo.
 """
 depends = "$auto"
 section = "utility"
